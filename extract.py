@@ -38,6 +38,7 @@ def find_csv(z, name):
 # Frequency use text in NASR -> label shown in the app (first match wins).
 RULES = [
     ("ATIS", r"ATIS"),
+    ("APP/DEP", r"(?=.*\bAPCH\b|.*\bAPP\b)(?=.*\bDEP\b)"),
     ("CLEARANCE", r"\bCD\b|CLNC|CLEARANCE|\bCLD\b"),
     ("GROUND", r"\bGND\b|GROUND"),
     ("TOWER", r"\bLCL\b|\bTWR\b|TOWER"),
@@ -48,6 +49,7 @@ RULES = [
     ("AWOS", r"AWOS|ASOS"),
 ]
 ORDER = [r[0] for r in RULES]
+DEBUG = {"KSNA", "KAJO", "KCNO", "KSMO"}
 
 
 def label(text):
@@ -114,6 +116,8 @@ def main():
             continue
         f = clean_freq(r.get(freq_col))
         name = label(r.get(use_col)) or label(r.get(type_col))
+        if key[lid] in DEBUG:
+            print("RAW", key[lid], r.get(type_col), "|", r.get(use_col), "|", r.get(freq_col), "|", r.get("SECTORIZATION"), "->", name)
         if f and name:
             out[key[lid]].append([name, f])
 
