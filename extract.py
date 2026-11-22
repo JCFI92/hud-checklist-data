@@ -49,7 +49,7 @@ RULES = [
     ("AWOS", r"AWOS|ASOS"),
 ]
 ORDER = [r[0] for r in RULES]
-DEBUG = {"KSNA", "KAJO", "KCNO", "KSMO"}
+MAX_PER_LABEL = 2
 
 
 def label(text):
@@ -103,7 +103,7 @@ def main():
         for col, name in [(c, "CTAF") for c in ctaf_cols] + [(c, "UNICOM") for c in unicom_cols]:
             f = clean_freq(a.get(col))
             if f:
-                rows.append([name, f])
+                rows.append([name, f, 0])
 
     svc_col = next((c for c in frq[0] if c.upper() in ("SERVICED_FACILITY", "SERVICED_FAC")), None)
     use_col = next((c for c in frq[0] if c.upper() == "FREQ_USE"), None)
@@ -116,19 +116,24 @@ def main():
             continue
         f = clean_freq(r.get(freq_col))
         name = label(r.get(use_col)) or label(r.get(type_col))
-        if key[lid] in DEBUG:
-            print("RAW", key[lid], r.get(type_col), "|", r.get(use_col), "|", r.get(freq_col), "|", r.get("SECTORIZATION"), "->", name)
         if f and name:
-            out[key[lid]].append([name, f])
+            use = (r.get(use_col) or "").upper()
+            rank = (0 if "/S" not in use else 1) + (0 if not (r.get("SECTORIZATION") or "").strip() else 2)
+            out[key[lid]].append([name, f, rank])
 
     final = {}
     for k, rows in out.items():
-        seen, keep = set(), []
-        for name, f in sorted(rows, key=lambda x: ORDER.index(x[0])):
-            if (name, f) in seen:
+        seen, keep, count = set(), [], {}
+        for name, f, _ in sorted(rows, key=lambda x: (ORDER.index(x[0]), x[2])):
+            if (name, f) in seen or count.get(name, 0) >= MAX_PER_LABEL:
                 continue
             seen.add((name, f))
+            count[name] = count.get(name, 0) + 1
             keep.append([name, f])
+        # At towered fields CTAF repeats the tower frequency; UNICOM often repeats CTAF.
+        tower = {f for n, f in keep if n == "TOWER"}
+        ctaf = {f for n, f in keep if n == "CTAF"}
+        keep = [[n, f] for n, f in keep if not (n == "CTAF" and f in tower) and not (n == "UNICOM" and f in ctaf)]
         if keep:
             final[k] = keep
 
